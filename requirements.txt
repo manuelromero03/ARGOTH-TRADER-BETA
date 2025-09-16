@@ -1,0 +1,6 @@
+pandas
+numpy
+gspread
+oauth2client
+# MetaTrader5 (usar solo en Windows con MT5 instalado)
+
