@@ -5,6 +5,12 @@ Verifica que los modulos de conexion (MT5 e IBKR) esten disponibleS.
 Este test no abre conexion real en Codespaces solo asegura la estructura.
 """
 
+import sys
+import os
+
+# Añade la carpeta raíz al path de Python
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import importlib
 
 def test_module(name):
