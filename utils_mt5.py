@@ -30,24 +30,12 @@ def connect(login: int = None, password: str = None, server: str = None) -> bool
     print("✅ Conexion establecida con MetaTrader 5.")
     return True 
 
-def get_symbols():
-    """
-    Devuelve la lista de simbolos disponibles en MT5.
-    En  codespaces devuelve lista simulada.
-    """
-    if not MT5_AVAILABLE: 
-        return ["EURUSD", "BTCUSD", "XAUUSD (oro)"]
+def get_tick(symbol=SYMBOLS):
+    #Devolver ticks fiticios para probar la logica 
+    bid = 1.1000
+    ask = 1.1002
+    return bid, ask
 
-    Symbols = mt5.symbols_get()
-    return [s.name for s in Symbols]
+def shutdown_mt5():
+    print("🔌[SIMULACION ACTIVADA] MT5 desconectado.")
 
-def shutrdown():
-    """
-    Cierra la conexion con MT5 si esta disponible.
-    """
-    if MT5_AVAILABLE:
-        mt5.shutdown()
-        print("🔌 Conexion con MT5 cerrada.")
-    else: 
-        print("⚠️ No hay conexion activa (placeholder).")
-        
