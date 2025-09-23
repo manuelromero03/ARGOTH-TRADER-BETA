@@ -1,52 +1,73 @@
 """
-utils_mt5.py - Conector MetaTrader 5 para ARGTOTH
+utils_mt5.py - Conector MetaTrader 5 para ARGOTH
 --------------------------------------------------
-Modulo encargado de la conexion con MetaTrader 5.
-En Codespaces funciona como placeHolder(sin Conexion real).
-En windows con MT5 instalado, permitira: 
- -Login
- -Obtener datos de mercado 
- -Enviar ordenes 
+Módulo encargado de la conexión con MetaTrader 5.
+En Codespaces funciona como placeholder (sin conexión real).
+En Windows con MT5 instalado, permitirá:
+ - Login
+ - Obtener datos de mercado
+ - Enviar órdenes
 """
 
+import random
+
+# Intento importar MT5
 try:
     import MetaTrader5 as mt5
     MT5_AVAILABLE = True
 except ImportError:
-    print("⚠️ MetaTrader5 no esta instalado en este entorno (placeholder activo).")
-    MT5_AVAILABLE = False 
+    print("⚠️ MetaTrader5 no está instalado en este entorno (placeholder activo).")
+    MT5_AVAILABLE = False
 
 def connect(login: int = None, password: str = None, server: str = None) -> bool:
     """
-    Intenta conector a MetaTrader 5.
-    En Codespaces siempre devolvera False.
+    Conecta a MT5. Si MT5 no está disponible, usa placeholder.
     """
     if not MT5_AVAILABLE:
+        print("🔌 Placeholder activo, no se conecta a MT5 real.")
         return False
-    
+
     if not mt5.initialize(login=login, password=password, server=server):
-        print(f"❌ Error al conector MT5: {mt5.last_error()}")
-        return False 
-    print("✅ Conexion establecida con MetaTrader 5.")
-    return True 
+        print(f"❌ Error al conectar MT5: {mt5.last_error()}")
+        return False
 
-def get_tick(symbol: str = None):
-    """
-    Devolver ticks fiticios (simulacion) para probar la logica 
-    Si se enjecuta en un entorno real con MT5 instalado
-    Deberia llamar a mt5.symbol_info_tick.
-    """
-    bid = 1.1000
-    ask = 1.1002
-    return bid, ask
+    print("✅ Conexión establecida con MT5.")
+    return True
 
-def shutdown_mt5():
+def get_symbols():
     """
-    Cierra la conexion con MT5 si esta activa. 
+    Devuelve la lista de símbolos disponibles en MT5.
+    Si MT5 no está disponible, devuelve lista simulada.
+    """
+    if not MT5_AVAILABLE:
+        return ["EURUSD", "BTCUSD", "XAUUSD (oro)"]
+
+    symbols = mt5.symbols_get()
+    return [s.name for s in symbols]
+
+def get_tick(symbol):
+    """
+    Devuelve el último tick de mercado.
+    Si MT5 no está disponible, devuelve valores simulados.
+    """
+    if MT5_AVAILABLE:
+        tick = mt5.symbol_info_tick(symbol)
+        if tick:
+            return tick.bid, tick.ask
+        else:
+            return None, None
+    else:
+        # Simulación
+        bid = round(random.uniform(1.08, 1.12), 5)
+        ask = bid + 0.0002
+        return bid, ask
+
+def shutdown():
+    """
+    Cierra la conexión con MT5 si está disponible.
     """
     if MT5_AVAILABLE:
         mt5.shutdown()
-        print("🔌 MT5 desconectado.")
-    else: 
-        print("🔌[SIMULACION ACTIVADA] MT5 desconectado.")
-
+        print("🔌 Conexión MT5 cerrada.")
+    else:
+        print("⚠️ Placeholder, no hay conexión real que cerrar.")
