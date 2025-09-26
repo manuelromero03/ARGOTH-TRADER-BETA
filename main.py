@@ -15,6 +15,7 @@ from strategy import generate_signals
 from utils_sim import get_price_data  # simulador temporal
 from utils_ibkr import connect_ibkr, get_accout_info
 
+
 # ===============================
 # CONFIGURACIÓN
 # ===============================
@@ -47,28 +48,39 @@ def connect_brokers():
     return ok_mt5, ok_ibkr
 
 def main_loop():
-    """Loop principal que obtiene ticks y ejecuta estrategia."""
-    columns = ["timestamp", "bid", "ask"]
-    df = pd.DataFrame(columns=columns)
-
+    """Loop principal que obtiene ticks y ejecuta estrategia, se detiene si hay problema."""
     try:
         while True:
             bid, ask = get_tick(SYMBOL)
+
+            # Revisar si MT5 está desconectado o tick inválido
+            if bid is None or ask is None:
+                print("⚠️ Tick no recibido o desconexión detectada. Pausando ARGOTH...")
+                break  # salir del loop, puedes usar 'return' o 'break'
+
             timestamp = pd.Timestamp.now()
-            df = pd.concat([df, pd.DataFrame([[timestamp, bid, ask]], columns=columns)], ignore_index=True)
             print(f"{timestamp} | Bid: {bid} | Ask: {ask}")
 
-            # TODO: aquí luego puedes llamar a la estrategia
-            # signals = generate_signals(...)
+            # Generar señales a partir de un DataFrame simulado
+            df = get_price_data(SYMBOL)       # 🔹 obtiene datos de precios
+            signals = generate_signals(df)    # 🔹 genera señales
 
-            # Guardar tick en CSV
-            df.to_csv(DATA_FILE, index=False)
+            # Si la señal es None (sin oportunidad de trading)
+            if signals is None or len(signals) == 0:
+                print("ℹ️ No hay señal válida, ARGOTH espera el siguiente tick...")
+                time.sleep(1)
+                continue  # esperar siguiente tick
+
+            # Aquí ejecutas la lógica de trading según 'signals'
+            print("📊 Señales generadas:", signals)
+            # execute_trade(signals)
 
             time.sleep(1)
+
     except KeyboardInterrupt:
-        print("🛑 Parando ARGOTH...")
+        print("🛑 ARGOTH detenido por usuario.")
         if platform.system() == "Windows":
-            shutdown()  # solo si usamos MT5 real
+            shutdown()
 
 def main():
     """Función principal de ARGOTH."""
