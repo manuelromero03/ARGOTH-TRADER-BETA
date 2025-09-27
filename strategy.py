@@ -3,74 +3,51 @@ strategy.py - Estrategia base de ARGOTH
 --------------------------------------
 Implementa:
 - EMA50 y EMA200
-- RSI14
+- RSI14 (versión Wilder)
 - Señales de compra/venta básicas
-
-Flujo:
-1. Calcular EMAs y RSI.
-2. Generar señal:
-   - BUY si EMA50 > EMA200 y RSI < 30 (sobreventa)
-   - SELL si EMA50 < EMA200 y RSI > 70 (sobrecompra)
-   - NONE en caso contrario
 """
 
 import pandas as pd
+import numpy as np
+
 
 def calculate_ema(df, period, column="close"):
-    """
-    Calcula el Exponential Moving Average (EMA) de un dataframe.
-    
-    df: DataFrame con columna 'close'
-    period: número de periodos de la EMA
-    column: columna sobre la cual calcular la EMA
-    """
-    ema = df[column].ewm(span=period, adjust=False).mean()
-    return ema
+    """Calcula el Exponential Moving Average (EMA)."""
+    return df[column].ewm(span=period, adjust=False).mean()
+
 
 def calculate_rsi(df, period=14, column="close"):
-    """
-    Calcula el Relative Strength Index (RSI) de un dataframe.
-    
-    df: DataFrame con columna 'close'
-    period: número de periodos
-    column: columna sobre la cual calcular RSI
-    """
+    """Calcula el Relative Strength Index (RSI) con método de Wilder."""
     delta = df[column].diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
 
-    avg_gain = gain.rolling(window=period, min_periods=1).mean()
-    avg_loss = loss.rolling(window=period, min_periods=1).mean()
+    gain = np.where(delta > 0, delta, 0)
+    loss = np.where(delta < 0, -delta, 0)
 
-    rs = avg_gain / avg_loss
+    gain_ema = pd.Series(gain).ewm(alpha=1/period, adjust=False).mean()
+    loss_ema = pd.Series(loss).ewm(alpha=1/period, adjust=False).mean()
+
+    rs = gain_ema / (loss_ema.replace(0, 1e-10))  # evitar división por 0
     rsi = 100 - (100 / (1 + rs))
+
     return rsi
+
 
 def generate_signals(df):
     """
     Genera señales de trading usando EMA50/EMA200 y RSI14.
-    
-    df: DataFrame con columna 'close'
-    
-    Devuelve el mismo DataFrame con columnas agregadas:
-    - EMA50
-    - EMA200
-    - RSI14
-    - Signal: "BUY", "SELL", "NONE"
+    Retorna el DataFrame con nuevas columnas.
     """
     df["EMA50"] = calculate_ema(df, 50)
     df["EMA200"] = calculate_ema(df, 200)
     df["RSI14"] = calculate_rsi(df, 14)
 
-    signals = []
+    # Debug: ver último valor de EMAs y RSI
+    print(f"EMA50: {df['EMA50'].iloc[-1]:.5f} | EMA200: {df['EMA200'].iloc[-1]:.5f} | RSI14: {df['RSI14'].iloc[-1]:.2f}")
 
-    for i in range(len(df)):
-        if df["EMA50"].iloc[i] > df["EMA200"].iloc[i] and df["RSI14"].iloc[i] < 30:
-            signals.append("BUY")
-        elif df["EMA50"].iloc[i] < df["EMA200"].iloc[i] and df["RSI14"].iloc[i] > 70:
-            signals.append("SELL")
-        else:
-            signals.append("NONE")
+    # Señales
+    df["Signal"] = np.where(
+        (df["EMA50"] > df["EMA200"]) & (df["RSI14"] < 30), "BUY",
+        np.where((df["EMA50"] < df["EMA200"]) & (df["RSI14"] > 70), "SELL", "NONE")
+    )
 
-    df["Signal"] = signals
     return df

@@ -13,14 +13,17 @@ import pandas as pd
 from config import SYMBOL, MT5_LOGIN, MT5_PASSWORD, MT5_SERVER
 from strategy import generate_signals
 from utils_sim import get_price_data  # simulador temporal
-from utils_ibkr import connect_ibkr, get_accout_info
-
+from utils_ibkr import connect_ibkr, get_accout_info  # ✅ corregido
+import MetaTrader5 as mt5
 
 # ===============================
 # CONFIGURACIÓN
 # ===============================
 DATA_FILE = "data/precios.csv"
 OUTPUT_FILE = "data/signals_log.csv"
+SYMBOL = "EURUSD"
+TIMEFRAME = mt5.TIMEFRAME_M1
+N_CANDLES = 250
 
 # Crear carpeta data si no existe
 if not os.path.exists("data"):
@@ -39,13 +42,28 @@ else:
 # ===============================
 def connect_brokers():
     """Conectar a brokers reales o simulados."""
-    ok_mt5 = connect(login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER)
-    print(f"🔗 Conexión MT5 exitosa: {ok_mt5}")
+    if platform.system() == "Windows":
+        ok_mt5 = connect(login=MT5_LOGIN, password=MT5_PASSWORD, server=MT5_SERVER)
+        print(f"🔗 Conexión MT5 exitosa: {ok_mt5}")
+    else:
+        ok_mt5 = False
+        print("⚠️ MT5 no disponible en este sistema (usando simulador).")
 
     ok_ibkr = connect_ibkr()
     print(f"🔗 Conexión IBKR exitosa: {ok_ibkr}")
 
     return ok_mt5, ok_ibkr
+
+
+def get_candles(symbol, n=250, timeframe=TIMEFRAME):
+    """Descargar velas del activo desde MT5."""
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, n)
+    if rates is None or len(rates) == 0:
+        return None
+    df = pd.DataFrame(rates)
+    df["time"] = pd.to_datetime(df["time"], unit="s")
+    return df
+
 
 def main_loop():
     """Loop principal que obtiene ticks y ejecuta estrategia, se detiene si hay problema."""
@@ -53,27 +71,30 @@ def main_loop():
         while True:
             bid, ask = get_tick(SYMBOL)
 
-            # Revisar si MT5 está desconectado o tick inválido
             if bid is None or ask is None:
                 print("⚠️ Tick no recibido o desconexión detectada. Pausando ARGOTH...")
-                break  # salir del loop, puedes usar 'return' o 'break'
+                break
 
             timestamp = pd.Timestamp.now()
-            print(f"{timestamp} | Bid: {bid} | Ask: {ask}")
+            print(f"\n{timestamp} | Bid: {bid} | Ask: {ask}")
 
-            # Generar señales a partir de un DataFrame simulado
-            df = get_price_data(SYMBOL)       # 🔹 obtiene datos de precios
-            signals = generate_signals(df)    # 🔹 genera señales
+            # Generar señales
+            df = get_price_data(SYMBOL)
+            df_signals = generate_signals(df)
 
-            # Si la señal es None (sin oportunidad de trading)
-            if signals is None or len(signals) == 0:
-                print("ℹ️ No hay señal válida, ARGOTH espera el siguiente tick...")
-                time.sleep(1)
-                continue  # esperar siguiente tick
+            # Últimos valores
+            last_close = df_signals["close"].iloc[-1]
+            last_ema50 = df_signals["EMA50"].iloc[-1]
+            last_ema200 = df_signals["EMA200"].iloc[-1]
+            last_rsi = df_signals["RSI14"].iloc[-1]
+            last_signal = df_signals["Signal"].iloc[-1]
 
-            # Aquí ejecutas la lógica de trading según 'signals'
-            print("📊 Señales generadas:", signals)
-            # execute_trade(signals)
+            # Debug en consola
+            print(f"📊 Señal actual: {last_signal}")
+            print(f"   ➡️ Close: {last_close:.5f} | EMA50: {last_ema50:.5f} | EMA200: {last_ema200:.5f} | RSI14: {last_rsi:.2f}")
+
+            # Aquí ejecutas la lógica de trading según 'last_signal'
+            # execute_trade(last_signal)
 
             time.sleep(1)
 
@@ -81,6 +102,7 @@ def main_loop():
         print("🛑 ARGOTH detenido por usuario.")
         if platform.system() == "Windows":
             shutdown()
+
 
 def main():
     """Función principal de ARGOTH."""
@@ -107,6 +129,7 @@ def main():
 
     # Iniciar loop en tiempo real
     main_loop()
+
 
 # ===============================
 # EJECUCIÓN
