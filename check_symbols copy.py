@@ -14,5 +14,6 @@ print(f"Se encontraron {len(symbols)} simbolos\n")
 for s in symbols[:50]:
     print(s.name)
 
+
 #Cerrar Conexion 
 mt5.shutdown()
