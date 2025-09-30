@@ -16,3 +16,5 @@ for s in symbols[:50]:
 
 #Cerrar Conexion 
 mt5.shutdown()
+
+
