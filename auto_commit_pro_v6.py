@@ -2,6 +2,7 @@
 # ===============================================================
 # Detecta cambios automáticamente y hace commits con formato profesional
 # Incluye emojis según fase detectada, agrupación de cambios y compatibilidad VS Code
+# Ahora incluye: sincronización automática con último commit remoto al iniciar Codespaces o VS Code
 
 import time
 import subprocess
@@ -100,6 +101,28 @@ def schedule_commit(file_path):
     changed_files.add(file_path)
     last_change_time = time.time()
 
+def sync_with_remote():
+    """Sincroniza automáticamente con el último commit remoto al iniciar"""
+    try:
+        env = "Codespaces" if os.getenv("CODESPACES") else "VS Code local"
+        print(f"🔄 [{env}] Sincronizando con el remoto...")
+
+        subprocess.run(["git", "fetch", "origin"], cwd=REPO_PATH, check=True)
+        result = subprocess.run(
+            ["git", "pull", "origin", "main"],
+            cwd=REPO_PATH,
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode == 0:
+            print("✅ Repo sincronizado con el último commit remoto.")
+        else:
+            print(f"⚠️ Aviso: No se pudo aplicar git pull.\n{result.stderr.strip()}")
+
+    except Exception as e:
+        print(f"⚠️ Error inesperado al sincronizar: {e}")
+
 # ===============================
 # HANDLER WATCHDOG
 # ===============================
@@ -113,6 +136,9 @@ class WatcherHandler(FileSystemEventHandler):
 # EJECUCIÓN PRINCIPAL
 # ===============================
 def main():
+    # primero sincronizamos con el repo remoto
+    sync_with_remote()
+
     observer = Observer()
     event_handler = WatcherHandler()
     observer.schedule(event_handler, REPO_PATH, recursive=True)
@@ -132,6 +158,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
-
-    
