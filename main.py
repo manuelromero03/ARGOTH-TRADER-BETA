@@ -198,8 +198,8 @@ def main_loop():
             last_rsi = df_signals["RSI14"].iloc[-1]
             last_signal = df_signals["Signal"].iloc[-1]
 
-            # Calcular SL, TP y lotes SOLO si hay señal
-            if last_signal in ["BUY","SELL"]:
+            if last_signal in ["BUY", "SELL"]:
+                # Calcular SL, TP y lotes
                 lot_size = calculate_lot_size(account_balance, RISK_PERCENT, STOP_LOSS_PIPS)
                 if last_signal == "BUY":
                     sl_price = bid - STOP_LOSS_PIPS * 0.0001
@@ -212,29 +212,22 @@ def main_loop():
                 print(f"📊 Señal actual: {color_signal(last_signal)} | Lote:{lot_size} | SL:{sl_price:.5f} | TP:{tp_price:.5f}")
                 print(f"   ➡️ Close: {last_close:.5f} | EMA50: {last_ema50:.5f} | EMA200: {last_ema200:.5f} | RSI14: {last_rsi:.2f}")
 
+                # Guardar registro en CSV y SQL
                 try:
                     save_to_csv_and_sql(timestamp, SYMBOL, bid, ask, last_signal,
-                            lot_size, sl_price, tp_price,
-                            last_close, last_ema50, last_ema200, last_rsi)
+                                        lot_size, sl_price, tp_price,
+                                        last_close, last_ema50, last_ema200, last_rsi)
                 except NameError:
-                    pass
+                    pass  # si no existe la función, solo continúa
 
-                save_trade_to_db(timestamp, SYMBOL, bid, ask, last_signal,
-                                 lot_size, sl_price, tp_price,
-                                 last_close, last_ema50, last_ema200, last_rsi)
+                try:
+                    save_trade_to_db(timestamp, SYMBOL, bid, ask, last_signal,
+                                     lot_size, sl_price, tp_price,
+                                     last_close, last_ema50, last_ema200, last_rsi)
+                except NameError:
+                    pass  # si no existe la función, solo continúa
 
-                # Guardar registro
-                # Guardar en la base de datos
-                save_trade_to_db(
-                                last_signal, 
-                                bid if last_signal == "BUY" else ask, 
-                                lot_size, 
-                                sl_price, 
-                                tp_price, 
-                                "OPEN"
-                                )
-
-                # Aquí va la ejecución de órdenes reales
+                # Aquí iría la ejecución real de órdenes
                 # execute_trade(last_signal)
 
             else:
@@ -246,7 +239,6 @@ def main_loop():
         print("🛑 ARGOTH detenido por usuario.")
         if platform.system() == "Windows":
             shutdown()
-
 
 # ===============================
 # MAIN
