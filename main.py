@@ -212,6 +212,17 @@ def main_loop():
                 print(f"📊 Señal actual: {color_signal(last_signal)} | Lote:{lot_size} | SL:{sl_price:.5f} | TP:{tp_price:.5f}")
                 print(f"   ➡️ Close: {last_close:.5f} | EMA50: {last_ema50:.5f} | EMA200: {last_ema200:.5f} | RSI14: {last_rsi:.2f}")
 
+                try:
+                    save_to_csv_and_sql(timestamp, SYMBOL, bid, ask, last_signal,
+                            lot_size, sl_price, tp_price,
+                            last_close, last_ema50, last_ema200, last_rsi)
+                except NameError:
+                    pass
+
+                save_trade_to_db(timestamp, SYMBOL, bid, ask, last_signal,
+                                 lot_size, sl_price, tp_price,
+                                 last_close, last_ema50, last_ema200, last_rsi)
+
                 # Guardar registro
                 # Guardar en la base de datos
                 save_trade_to_db(
