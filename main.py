@@ -14,6 +14,7 @@ from config import SYMBOL, MT5_LOGIN, MT5_PASSWORD, MT5_SERVER
 from strategy import generate_signals
 from utils_sim import get_price_data  # simulador temporal
 from utils_ibkr import connect_ibkr, get_accout_info
+from strategy import generate_signals
 
 
 # ===============================
@@ -46,6 +47,15 @@ def connect_brokers():
     print(f"🔗 Conexión IBKR exitosa: {ok_ibkr}")
 
     return ok_mt5, ok_ibkr
+
+def get_candles(symbol, n=250, timeframe=TIMEFRAME):
+    """Descargar velas del activo desde MT5."""
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, n)
+    if rates is None or len(rates) == 0:
+        return None 
+    df = pd.DataFrame(rates)
+    df["time"] = pd.to_datetime(df["time"], unit="s")
+    return df
 
 def main_loop():
     """Loop principal que obtiene ticks y ejecuta estrategia, se detiene si hay problema."""
