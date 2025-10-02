@@ -12,17 +12,44 @@ import os
 import platform
 import time
 import pandas as pd
+from datetime import datetime
+from tabulate import tabulate
+from colorama import Fore, Style, init
+
+import MetaTrader5 as mt5
+
+# Configuración interna
 from config import SYMBOL, MT5_LOGIN, MT5_PASSWORD, MT5_SERVER
 from strategy import generate_signals
 from utils_sim import get_price_data  # simulador temporal
-from utils_ibkr import connect_ibkr, get_accout_info  # ✅ corregido
-import MetaTrader5 as mt5
-from tabulate import tabulate
-from colorama import Fore, Style, init
-from datetime import datetime
+from utils_ibkr import connect_ibkr, get_accout_info
 
 # Inicializar colorama
 init(autoreset=True)
+
+# ===============================
+# BASE DE DATOS
+# ===============================
+conn = sqlite3.connect("argoth_trading.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS trades (
+    timestamp TEXT,
+    symbol TEXT,
+    bid REAL,
+    ask REAL,
+    signal TEXT,
+    lot_size REAL,
+    sl REAL,
+    tp REAL,
+    close REAL,
+    ema50 REAL,
+    ema200 REAL,
+    rsi14 REAL
+)
+""")
+conn.commit()
 
 # ===============================
 # CONFIGURACIÓN
@@ -46,8 +73,48 @@ else:
     from utils_sim import get_tick  # Simulador para macOS/Linux
 
 # ===============================
-# FUNCIONES PRINCIPALES
+# PARAMETROS DE RIESGO
 # ===============================
+RISK_PERCENT = 1        # 1% de capital a arriesgar por operación
+STOP_LOSS_PIPS = 20     # Stop Loss en pips
+TAKE_PROFIT_PIPS = 40   # Take Profit en pips
+
+
+def calculate_lot_size(balance, risk_percent, stop_loss_pips, pip_value=0.0001):
+    """Calcula el tamaño de lote basado en capital y riesgo."""
+    risk_amount = balance * (risk_percent / 100)
+    lot_size = risk_amount / (stop_loss_pips * pip_value * 100000)  # 1 lote estándar = 100k
+    return round(lot_size, 2)
+
+
+def color_signal(signal: str) -> str:
+    """Devuelve la señal con color según BUY/SELL/None."""
+    if signal == "BUY":
+        return Fore.GREEN + signal + Style.RESET_ALL
+    elif signal == "SELL":
+        return Fore.RED + signal + Style.RESET_ALL
+    else:
+        return Fore.YELLOW + (signal if signal else "NONE") + Style.RESET_ALL
+
+
+# ===============================
+# FUNCIONES AUXILIARES
+# ===============================
+def save_to_csv_and_sql(timestamp, symbol, bid, ask, signal, lot_size, sl, tp, close, ema50, ema200, rsi14):
+    """Guardar operación en CSV + SQLite."""
+    # CSV
+    with open("signal_log.csv", "a", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow([timestamp, symbol, bid, ask, signal, lot_size, sl, tp, close, ema50, ema200, rsi14])
+
+    # SQL
+    cursor.execute("""
+    INSERT INTO trades (timestamp, symbol, bid, ask, signal, lot_size, sl, tp, close, ema50, ema200, rsi14)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (timestamp, symbol, bid, ask, signal, lot_size, sl, tp, close, ema50, ema200, rsi14))
+    conn.commit()
+
+
 def connect_brokers():
     """Conectar a brokers reales o simulados."""
     if platform.system() == "Windows":
@@ -72,36 +139,14 @@ def get_candles(symbol, n=250, timeframe=TIMEFRAME):
     df["time"] = pd.to_datetime(df["time"], unit="s")
     return df
 
-# =============================
-# PARAMETROS DE RIESGO
-# =============================
-RISK_PERCENT = 1        # 1% de capital a arriesgar por operación
-STOP_LOSS_PIPS = 20     # Stop Loss en pips
-TAKE_PROFIT_PIPS = 40   # Take Profit en pips
 
-def calculate_lot_size(balance, risk_percent, stop_loss_pips, pip_value=0.0001):
-    """
-    Calcula el tamaño de lote basado en capital y riesgo.
-    """
-    risk_amount = balance * (risk_percent / 100)
-    lot_size = risk_amount / (stop_loss_pips * pip_value * 100000)  # 1 lote estándar = 100k
-    return round(lot_size, 2)
-
-
-def color_signal(signal: str) -> str:
-    """Devuelve la señal con color según BUY/SELL/None."""
-    if signal == "BUY":
-        return Fore.GREEN + signal + Style.RESET_ALL
-    elif signal == "SELL":
-        return Fore.RED + signal + Style.RESET_ALL
-    else:
-        return Fore.YELLOW + (signal if signal else "NONE") + Style.RESET_ALL
-
-
+# ===============================
+# LOOP PRINCIPAL
+# ===============================
 def main_loop():
-    """Loop principal que obtiene ticks y ejecuta estrategia, se detiene si hay problema."""
+    """Loop principal que obtiene ticks y ejecuta estrategia."""
     try:
-        account_balance = 10000  # demo inicial, reemplazar con get_account_info() si disponible
+        account_balance = 10000  # demo inicial (TODO: reemplazar con get_account_info())
 
         while True:
             bid, ask = get_tick(SYMBOL)
@@ -124,7 +169,7 @@ def main_loop():
             last_rsi = df_signals["RSI14"].iloc[-1]
             last_signal = df_signals["Signal"].iloc[-1]
 
-            # Calcular SL, TP y lotes
+            # Calcular SL, TP y lotes SOLO si hay señal
             if last_signal in ["BUY","SELL"]:
                 lot_size = calculate_lot_size(account_balance, RISK_PERCENT, STOP_LOSS_PIPS)
                 if last_signal == "BUY":
@@ -134,10 +179,16 @@ def main_loop():
                     sl_price = bid + STOP_LOSS_PIPS * 0.0001
                     tp_price = bid - TAKE_PROFIT_PIPS * 0.0001
 
-                # Debug en consola con color
+                # Debug en consola
                 print(f"📊 Señal actual: {color_signal(last_signal)} | Lote:{lot_size} | SL:{sl_price:.5f} | TP:{tp_price:.5f}")
                 print(f"   ➡️ Close: {last_close:.5f} | EMA50: {last_ema50:.5f} | EMA200: {last_ema200:.5f} | RSI14: {last_rsi:.2f}")
-                # Aquí ejecutas la lógica de trading según 'last_signal'
+
+                # Guardar registro
+                save_to_csv_and_sql(timestamp, SYMBOL, bid, ask, last_signal,
+                                    lot_size, sl_price, tp_price,
+                                    last_close, last_ema50, last_ema200, last_rsi)
+
+                # Aquí va la ejecución de órdenes reales
                 # execute_trade(last_signal)
 
             else:
@@ -151,8 +202,10 @@ def main_loop():
             shutdown()
 
 
+# ===============================
+# MAIN
+# ===============================
 def main():
-    """Función principal de ARGOTH."""
     print(f"🚀 ARGOTH iniciando con estrategia base para {SYMBOL}")
 
     # Conectar brokers
@@ -163,10 +216,9 @@ def main():
     if df is None or df.empty:
         print("⚠️ No se encontraron datos de precios. Verifica el archivo CSV.")
     else:
-        # Generar señales con la estrategia
         df = generate_signals(df)
 
-        # Reordenamos columnas (si existen)
+        # Reordenamos columnas
         columns_order = ["time","close","EMA50","EMA200","RSI14","Signal"]
         df = df[[c for c in columns_order if c in df.columns]]
 
@@ -174,25 +226,18 @@ def main():
         df_color = df.copy()
         df_color["Signal"] = df_color["Signal"].apply(color_signal)
 
-        # Mostrar últimas señales en tabla bonita
         print("\n📊 Últimas 10 señales generadas:")
-        print(tabulate(
-            df_color.tail(10),
-            headers="keys",
-            tablefmt="psql",
-            floatfmt=".5f"
-        ))
+        print(tabulate(df_color.tail(10),
+                      headers="keys",
+                      tablefmt="psql",
+                      floatfmt=".5f"))
 
-        # Guardar log en CSV bien formateado
         df.to_csv(OUTPUT_FILE, index=False, float_format="%.5f")
         print(f"\n✅ Señales guardadas en {OUTPUT_FILE}")
 
-    # Iniciar loop en tiempo real
+    # Loop en tiempo real
     main_loop()
 
 
-# ===============================
-# EJECUCIÓN
-# ===============================
 if __name__ == "__main__":
     main()
