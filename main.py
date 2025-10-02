@@ -140,6 +140,35 @@ def get_candles(symbol, n=250, timeframe=TIMEFRAME):
     return df
 
 
+def save_trade_to_db(timestamp, symbol, bid, ask, signal, lot_size, sl, tp, close, ema50, ema200, rsi14):
+    """
+    Inserta un registro de trade en la tabla `trades`. Usa las variables globales
+    `conn` y `cursor` que ya definiste al inicio del archivo.
+    """
+    # normalizar timestamp a string
+    if hasattr(timestamp, "isoformat"):
+        ts = timestamp.isoformat()
+    else:
+        ts = str(timestamp)
+
+    # asegurar tipos float (evita errores si vienen como numpy types)
+    try:
+        bid_v = float(bid) if bid is not None else None
+        ask_v = float(ask) if ask is not None else None
+        close_v = float(close) if close is not None else None
+        ema50_v = float(ema50) if ema50 is not None else None
+        ema200_v = float(ema200) if ema200 is not None else None
+        rsi_v = float(rsi14) if rsi14 is not None else None
+    except Exception:
+        bid_v = ask_v = close_v = ema50_v = ema200_v = rsi_v = None
+
+    cursor.execute("""
+        INSERT INTO trades
+        (timestamp, symbol, bid, ask, signal, lot_size, sl, tp, close, ema50, ema200, rsi14)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (ts, symbol, bid_v, ask_v, signal, lot_size, sl, tp, close_v, ema50_v, ema200_v, rsi_v))
+    conn.commit()
+
 # ===============================
 # LOOP PRINCIPAL
 # ===============================
@@ -184,9 +213,15 @@ def main_loop():
                 print(f"   ➡️ Close: {last_close:.5f} | EMA50: {last_ema50:.5f} | EMA200: {last_ema200:.5f} | RSI14: {last_rsi:.2f}")
 
                 # Guardar registro
-                save_to_csv_and_sql(timestamp, SYMBOL, bid, ask, last_signal,
-                                    lot_size, sl_price, tp_price,
-                                    last_close, last_ema50, last_ema200, last_rsi)
+                # Guardar en la base de datos
+                save_trade_to_db(
+                                last_signal, 
+                                bid if last_signal == "BUY" else ask, 
+                                lot_size, 
+                                sl_price, 
+                                tp_price, 
+                                "OPEN"
+                                )
 
                 # Aquí va la ejecución de órdenes reales
                 # execute_trade(last_signal)
