@@ -6,6 +6,8 @@ Inicializa el entorno de trading, conecta con brokers
 y ejecuta un bucle que genera señales y registra datos.
 """
 
+import csv
+import sqlite3
 import os
 import platform
 import time
@@ -17,6 +19,7 @@ from utils_ibkr import connect_ibkr, get_accout_info  # ✅ corregido
 import MetaTrader5 as mt5
 from tabulate import tabulate
 from colorama import Fore, Style, init
+from datetime import datetime
 
 # Inicializar colorama
 init(autoreset=True)
