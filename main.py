@@ -12,6 +12,7 @@ import os
 import platform
 import time
 import pandas as pd
+<<<<<<< HEAD
 from datetime import datetime
 from tabulate import tabulate
 from colorama import Fore, Style, init
@@ -50,6 +51,14 @@ CREATE TABLE IF NOT EXISTS trades (
 )
 """)
 conn.commit()
+=======
+import MetaTrader5 as mt5
+
+from config import SYMBOL, MT5_LOGIN, MT5_PASSWORD, MT5_SERVER
+from strategy import generate_signals
+from utils_sim import get_price_data  # simulador temporal
+from utils_ibkr import connect_ibkr, get_accout_info  # ✅ corregido
+>>>>>>> 4ea71d42869a3f5f42810f1a2e88c3183537401f
 
 # ===============================
 # CONFIGURACIÓN

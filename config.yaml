@@ -1,0 +1,26 @@
+data:
+  source: "csv"
+  csv_path: "data/prices.csv"
+exchange:
+  symbol: "SIM/PRICE"
+  timeframe: "1h"
+db:
+  sqlite_path: "argoth_trading.db"   # usamos tu DB existente por defecto
+strategy:
+  ema_short: 50
+  ema_long: 200
+  rsi_period: 14
+runtime:
+  mode: "sim"
+  enable_real_trading: false
+  max_drawdown_pct: 0.2
+  position_size_pct: 0.05
+capital:
+  initial: 10000.0
+logging:
+  level: "INFO"
+  logs_dir: "logs"
+output:
+  signals_csv: "logs/signals_log.csv"
+  prices_csv: "logs/prices.csv"
+
